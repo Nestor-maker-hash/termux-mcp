@@ -20,6 +20,7 @@ from .handlers.history import (
 from .handlers.terminal import (
     handle_diagnose, handle_backup, handle_restore,
 )
+from .handlers.developer import handle_inspect_project, handle_search_project, handle_read_project_file, handle_trace_project, handle_impact_project, handle_edit_project
 from .tools_schema import OPENAI_TOOLS
 
 
@@ -223,6 +224,12 @@ _MODULE_ROUTES = {
     "recipe_save": handle_recipe_save,
     "context": handle_context,
     "context_save": handle_context_save,
+    "inspect_project": handle_inspect_project,
+    "search_project": handle_search_project,
+    "read_project_file": handle_read_project_file,
+    "trace_project": handle_trace_project,
+    "impact_project": handle_impact_project,
+    "edit_project": handle_edit_project,
     "history": handle_history_list,
     "history_save": handle_history_save,
     "history_clear": handle_history_clear,

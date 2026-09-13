@@ -780,6 +780,234 @@ OPENAI_TOOLS = [
             "parameters": {"type": "object", "properties": {}}
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "inspect_project",
+            "description": "Inspect a local software project and return structured information about its languages, frameworks, package managers, configuration files, source directories, entry points, package scripts, and Git status. Read-only; does not execute project commands or modify files.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Project directory to inspect. Defaults to the current directory.",
+                        "default": "."
+                    }
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_project",
+            "description": "Search text across files in a local software project and return matching file paths, line numbers, and matching lines. Read-only; does not execute commands or modify files.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Project directory to search. Defaults to the current directory.",
+                        "default": "."
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Text to search for."
+                    },
+                    "file_types": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional file extensions to search, such as ts, tsx, py, json."
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of matches to return. Defaults to 100.",
+                        "default": 100,
+                        "minimum": 1,
+                        "maximum": 100
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_project_file",
+            "description": "Read a local project file and return its contents with line numbers. Supports reading the whole file or a specific line range. Read-only; does not modify files.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the project file to read."
+                    },
+                    "start_line": {
+                        "type": "integer",
+                        "description": "Optional first line to read. Defaults to 1."
+                    },
+                    "end_line": {
+                        "type": "integer",
+                        "description": "Optional last line to read. Defaults to the end of the file."
+                    }
+                },
+                "required": ["path"]
+            }
+        }
+    },
+
+    {
+        "type": "function",
+        "function": {
+            "name": "trace_project",
+            "description": "Trace local project file relationships by following JavaScript and TypeScript imports recursively.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the project file from which to start tracing."
+                    }
+                },
+                "required": ["path"]
+            }
+        }
+    }
+,
+    {
+        "type": "function",
+        "function": {
+            "name": "impact_project",
+            "description": "Analyze a local project file's dependencies and find other JavaScript or TypeScript files that import it.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the project file whose dependency impact should be analyzed."
+                    }
+                },
+                "required": ["path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "edit_project",
+            "description": "Modify local project files using verified replace, insert, delete, create, delete_file, or move operations. Supports multiple operations, exact-match validation, dry runs, and unified diffs.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Project directory or file path used to locate the project root."
+                    },
+                    "operations": {
+                        "type": "array",
+                        "description": "List of file edit operations to apply.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "operation": {
+                                    "type": "string",
+                                    "enum": [
+                                        "replace",
+                                        "insert",
+                                        "delete",
+                                        "create",
+                                        "delete_file",
+                                        "move"
+                                    ]
+                                },
+                                "path": {
+                                    "type": "string"
+                                },
+                                "target": {
+                                    "type": "string"
+                                },
+                                "old_text": {
+                                    "type": "string"
+                                },
+                                "new_text": {
+                                    "type": "string"
+                                },
+                                "content": {
+                                    "type": "string"
+                                },
+                                "position": {
+                                    "type": "string",
+                                    "enum": ["before", "after"]
+                                },
+                                "destination": {
+                                    "type": "string"
+                                },
+                                "expected_count": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                }
+                            },
+                            "required": ["operation"]
+                        }
+                    },
+                    "operation": {
+                        "type": "object",
+                        "description": "Optional single edit operation. Use this instead of operations for one edit.",
+                        "properties": {
+                            "operation": {
+                                "type": "string",
+                                "enum": [
+                                    "replace",
+                                    "insert",
+                                    "delete",
+                                    "create",
+                                    "delete_file",
+                                    "move"
+                                ]
+                            },
+                            "path": {
+                                "type": "string"
+                            },
+                            "target": {
+                                "type": "string"
+                            },
+                            "old_text": {
+                                "type": "string"
+                            },
+                            "new_text": {
+                                "type": "string"
+                            },
+                            "content": {
+                                "type": "string"
+                            },
+                            "position": {
+                                "type": "string",
+                                "enum": ["before", "after"]
+                            },
+                            "destination": {
+                                "type": "string"
+                            },
+                            "expected_count": {
+                                "type": "integer",
+                                "minimum": 1
+                            }
+                        },
+                        "required": ["operation"]
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Validate the operations and return the diff without writing files.",
+                        "default": False
+                    }
+                },
+                "oneOf": [
+                    {"required": ["operations"]},
+                    {"required": ["operation"]}
+                ]
+            }
+        }
+    }
 ]
 
 # ── Tool categories (used by the /catalog endpoint) ──────────────────────
@@ -809,6 +1037,9 @@ TOOL_CATEGORIES = {
     "session_list": "session", "session_kill": "session",
     "session_poll": "session",
     "history": "history", "history_save": "history", "history_clear": "history",
+    "inspect_project": "developer", "search_project": "developer",
+    "read_project_file": "developer", "trace_project": "developer", "impact_project": "developer",
+    "edit_project": "developer",
 }
 
 
