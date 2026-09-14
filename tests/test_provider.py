@@ -105,6 +105,59 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(payload["messages"][0]["content"], "Read src/app.tsx")
         self.assertEqual(payload["tools"], tools)
 
+    def test_mcp_tool_is_normalized(self):
+        provider = FakeProvider({
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "done",
+                    }
+                }
+            ]
+        })
+
+        mcp_tools = [
+            {
+                "name": "inspect_project",
+                "description": "Inspect a project.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                    },
+                    "required": ["path"],
+                },
+            }
+        ]
+
+        provider.complete(
+            [{"role": "user", "content": "Inspect ."}],
+            mcp_tools,
+        )
+
+        tools = provider.received_payload[1]["tools"]
+
+        self.assertEqual(
+            tools,
+            [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "inspect_project",
+                        "description": "Inspect a project.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "path": {"type": "string"},
+                            },
+                            "required": ["path"],
+                        },
+                    },
+                }
+            ],
+        )
+
     def test_system_prompt(self):
         provider = FakeProvider({
             "choices": [

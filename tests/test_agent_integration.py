@@ -160,7 +160,7 @@ class AgentIntegrationTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            first_payload["tools"][0]["name"],
+            first_payload["tools"][0]["function"]["name"],
             "echo",
         )
 

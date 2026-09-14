@@ -474,7 +474,11 @@ def invoke_tool(session: MCPSession, name: str, params: dict,
 
             set_current_dir(session.cwd)
             vh = mcp_bridge.VirtualHandler()
-            route(vh, p)
+            if name in mcp_bridge._INSTANCE_ROUTES:
+                method_name = mcp_bridge._INSTANCE_ROUTES[name]
+                getattr(mcp_bridge.MCPHandler, method_name)(vh, p)
+            else:
+                route(vh, p)
             return mcp_bridge.decode_virtual(vh)
     finally:
         session.on_line = old_cb

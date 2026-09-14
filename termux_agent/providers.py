@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import http.client
 from typing import Any, Dict, List, Optional, Sequence
 from urllib.parse import urlparse
@@ -70,7 +71,10 @@ class OpenAICompatibleProvider:
         }
 
         if tools:
-            payload["tools"] = list(tools)
+            payload["tools"] = [
+                self._normalize_tool(tool)
+                for tool in tools
+            ]
 
         response = self._post("/chat/completions", payload)
 
@@ -110,10 +114,23 @@ class OpenAICompatibleProvider:
                 try:
                     arguments = json.loads(raw_arguments)
                 except json.JSONDecodeError as exc:
-                    raise ProviderError(
-                        "Provider returned invalid JSON tool arguments "
-                        "for {!r}: {}".format(name, exc)
-                    ) from exc
+                    repaired = re.sub(
+                        r",\\s*([}\\]])",
+                        r"\\1",
+                        raw_arguments,
+                    )
+                    if repaired == raw_arguments:
+                        raise ProviderError(
+                            "Provider returned invalid JSON tool arguments "
+                            "for {!r}: {}".format(name, exc)
+                        ) from exc
+                    try:
+                        arguments = json.loads(repaired)
+                    except json.JSONDecodeError:
+                        raise ProviderError(
+                            "Provider returned invalid JSON tool arguments "
+                            "for {!r}: {}".format(name, exc)
+                        ) from exc
             elif isinstance(raw_arguments, dict):
                 arguments = raw_arguments
             else:
@@ -142,6 +159,43 @@ class OpenAICompatibleProvider:
             content=content,
             tool_calls=tool_calls,
         )
+
+    @staticmethod
+    def _normalize_tool(tool: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize an MCP tool or OpenAI tool to OpenAI function format."""
+        if not isinstance(tool, dict):
+            raise ProviderError("Tool definition must be an object.")
+
+        # Already normalized for OpenAI-compatible APIs.
+        if (
+            tool.get("type") == "function"
+            and isinstance(tool.get("function"), dict)
+        ):
+            return dict(tool)
+
+        name = tool.get("name")
+        description = tool.get("description", "")
+        input_schema = tool.get("inputSchema")
+
+        if not isinstance(name, str) or not name:
+            raise ProviderError("MCP tool is missing a valid name.")
+
+        if not isinstance(description, str):
+            description = str(description)
+
+        if not isinstance(input_schema, dict):
+            raise ProviderError(
+                "MCP tool {!r} is missing a valid inputSchema.".format(name)
+            )
+
+        return {
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": description,
+                "parameters": input_schema,
+            },
+        }
 
     def _post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         parsed = urlparse(self.base_url)

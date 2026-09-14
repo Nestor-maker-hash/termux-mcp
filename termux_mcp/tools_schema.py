@@ -1001,10 +1001,6 @@ OPENAI_TOOLS = [
                         "default": False
                     }
                 },
-                "oneOf": [
-                    {"required": ["operations"]},
-                    {"required": ["operation"]}
-                ]
             }
         }
     }
