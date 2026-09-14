@@ -519,27 +519,36 @@ def _project_summary(
         if path.name in ENTRY_FILES
     )[:100]
 
-    source_names = {
-        "src",
-        "app",
-        "pages",
-        "components",
-        "lib",
-        "utils",
-        "backend",
-        "frontend",
-        "server",
-        "api",
-        "tests",
-        "test",
-        "__tests__",
+    source_extensions = {
+        ".py",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
     }
 
-    source_directories = [
-        name
-        for name in _directories(project_root)
-        if name in source_names
-    ]
+    source_directories = []
+
+    for directory in _directories(project_root):
+        directory_path = project_root / directory
+
+        try:
+            has_source = any(
+                child.is_file()
+                and child.suffix.lower() in source_extensions
+                for child in directory_path.rglob("*")
+                if not any(
+                    part in IGNORED_DIRS
+                    for part in child.relative_to(project_root).parts
+                )
+            )
+        except (OSError, RuntimeError, ValueError):
+            has_source = False
+
+        if has_source:
+            source_directories.append(directory)
 
     return {
         "path": str(project_root),
@@ -643,13 +652,18 @@ TRACE_PROJECT_MAX_DEPTH = 5
 TRACE_PROJECT_MAX_FILE_BYTES = 2 * 1024 * 1024
 
 
-def _trace_imports(source: str) -> list[str]:
-    """Extract likely local/module import targets from JS/TS source."""
+def _trace_imports(source: str, file_path: Path | None = None) -> list[str]:
+    """Extract likely local/module import targets from source code."""
     patterns = [
         r'import\s+(?:[\s\S]*?\s+from\s+)?["\']([^"\']+)["\']',
         r'export\s+(?:[\s\S]*?\s+from\s+)?["\']([^"\']+)["\']',
         r'require\s*\(\s*["\']([^"\']+)["\']\s*\)',
         r'import\s*\(\s*["\']([^"\']+)["\']\s*\)',
+    ]
+
+    python_patterns = [
+        r'^\s*from\s+(\.+[A-Za-z_][A-Za-z0-9_.]*|[A-Za-z_][A-Za-z0-9_.]*)\s+import\s+',
+        r'^\s*import\s+([A-Za-z_][A-Za-z0-9_.]*)',
     ]
 
     imports = []
@@ -665,6 +679,19 @@ def _trace_imports(source: str) -> list[str]:
 
             if value and value not in imports:
                 imports.append(value)
+
+    if file_path is None or file_path.suffix.lower() == ".py":
+        for pattern in python_patterns:
+            try:
+                matches = re.findall(pattern, source, re.MULTILINE)
+            except Exception:
+                matches = []
+
+            for value in matches:
+                value = value.strip()
+
+                if value and value not in imports:
+                    imports.append(value)
 
     return imports
 
@@ -714,6 +741,13 @@ def _resolve_trace_import(
         import_name.startswith(".")
         or import_name.startswith("/")
         or import_name.startswith("@/")
+        or (
+            source_file.suffix.lower() == ".py"
+            and re.fullmatch(
+                r"[A-Za-z_][A-Za-z0-9_.]*",
+                import_name,
+            )
+        )
     ):
         return None
 
@@ -724,6 +758,7 @@ def _resolve_trace_import(
     def add_candidates(base: Path) -> None:
         suffixes = [
             "",
+            ".py",
             ".ts",
             ".tsx",
             ".js",
@@ -736,6 +771,7 @@ def _resolve_trace_import(
             candidates.append(Path(str(base) + suffix))
 
         for name in [
+            "__init__.py",
             "index.ts",
             "index.tsx",
             "index.js",
@@ -748,9 +784,41 @@ def _resolve_trace_import(
     if import_name.startswith("@/"):
         add_candidates(root / base_url / import_name[2:])
     elif import_name.startswith("."):
-        add_candidates(source_file.parent / import_name)
+        if source_file.suffix.lower() == ".py":
+            current = source_file.parent
+
+            leading_dots = len(import_name) - len(import_name.lstrip("."))
+            relative_name = import_name[leading_dots:]
+
+            # In Python, one leading dot means the current package,
+            # two means the parent package, three means two levels up, etc.
+            for _ in range(max(0, leading_dots - 1)):
+                if current != root:
+                    current = current.parent
+
+            if relative_name:
+                add_candidates(current / relative_name.replace(".", "/"))
+        else:
+            add_candidates(source_file.parent / import_name)
     elif import_name.startswith("/"):
         add_candidates(root / import_name.lstrip("/"))
+    elif source_file.suffix.lower() == ".py":
+        module_parts = import_name.split(".")
+
+        for index in range(len(module_parts), 0, -1):
+            module_root = root.joinpath(*module_parts[:index])
+
+            remainder = module_parts[index:]
+
+            if remainder:
+                add_candidates(
+                    module_root.joinpath(*remainder)
+                )
+            else:
+                add_candidates(module_root)
+
+            add_candidates(module_root)
+
     else:
         for alias, targets in aliases.items():
             if alias.endswith("/*"):
@@ -944,6 +1012,16 @@ def handle_trace_project(
 def _collect_project_source_files(root: Path) -> list[Path]:
     files = []
 
+    source_extensions = {
+        ".py",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+    }
+
     try:
         for path in root.rglob("*"):
             if not path.is_file():
@@ -955,14 +1033,7 @@ def _collect_project_source_files(root: Path) -> list[Path]:
             ):
                 continue
 
-            if path.suffix.lower() not in {
-                ".ts",
-                ".tsx",
-                ".js",
-                ".jsx",
-                ".mjs",
-                ".cjs",
-            }:
+            if path.suffix.lower() not in source_extensions:
                 continue
 
             try:
@@ -1116,7 +1187,7 @@ def handle_impact_project(
         except OSError:
             continue
 
-        relationships = _trace_imports(source)
+        relationships = _trace_imports(source, source_file)
 
         for relationship in relationships:
             if isinstance(relationship, str):

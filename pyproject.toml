@@ -17,3 +17,4 @@ requires-python = ">=3.8"
 [project.scripts]
 termux-mcp = "termux_mcp.__main__:run"
 termux-native-mcp = "termux_mcp.mcp_main:main"
+termux-agent = "termux_agent.cli:main"
