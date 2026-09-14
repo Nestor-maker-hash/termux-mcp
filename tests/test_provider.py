@@ -105,6 +105,47 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(payload["messages"][0]["content"], "Read src/app.tsx")
         self.assertEqual(payload["tools"], tools)
 
+    def test_tool_call_preserves_extra_content(self):
+        provider = FakeProvider({
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "type": "function",
+                                "function": {
+                                    "name": "inspect_project",
+                                    "arguments": '{"path":"."}',
+                                },
+                                "extra_content": {
+                                    "google": {
+                                        "thought_signature": "TEST_SIGNATURE",
+                                    }
+                                },
+                            }
+                        ],
+                    }
+                }
+            ]
+        })
+
+        result = provider.complete(
+            [{"role": "user", "content": "Inspect this project"}],
+            [],
+        )
+
+        self.assertEqual(
+            result.tool_calls[0].metadata,
+            {
+                "google": {
+                    "thought_signature": "TEST_SIGNATURE",
+                }
+            },
+        )
+
     def test_mcp_tool_is_normalized(self):
         provider = FakeProvider({
             "choices": [

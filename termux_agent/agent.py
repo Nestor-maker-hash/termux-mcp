@@ -20,6 +20,7 @@ class ToolCall:
     name: str
     arguments: Dict[str, Any]
     id: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -115,15 +116,20 @@ class Agent:
                 for index, call in enumerate(response.tool_calls):
                     call_id = call.id or "call_{}".format(index + 1)
 
+                    tool_call_message: Dict[str, Any] = {
+                        "id": call_id,
+                        "type": "function",
+                        "function": {
+                            "name": call.name,
+                            "arguments": json.dumps(call.arguments),
+                        },
+                    }
+
+                    if call.metadata is not None:
+                        tool_call_message["extra_content"] = call.metadata
+
                     assistant_message["tool_calls"].append(
-                        {
-                            "id": call_id,
-                            "type": "function",
-                            "function": {
-                                "name": call.name,
-                                "arguments": json.dumps(call.arguments),
-                            },
-                        }
+                        tool_call_message
                     )
 
                 messages.append(assistant_message)

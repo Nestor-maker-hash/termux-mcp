@@ -147,11 +147,16 @@ class OpenAICompatibleProvider:
             if call_id is not None and not isinstance(call_id, str):
                 call_id = str(call_id)
 
+            metadata = raw_call.get("extra_content")
+            if metadata is not None and not isinstance(metadata, dict):
+                metadata = None
+
             tool_calls.append(
                 ToolCall(
                     name=name,
                     arguments=arguments,
                     id=call_id,
+                    metadata=metadata,
                 )
             )
 

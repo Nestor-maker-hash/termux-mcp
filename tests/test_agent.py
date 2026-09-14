@@ -162,6 +162,45 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(second_messages[2]["name"], "echo")
         self.assertEqual(second_messages[2]["content"], "hello")
 
+    def test_run_preserves_tool_call_metadata(self):
+        provider = FakeProvider(
+            [
+                ProviderResponse(
+                    tool_calls=[
+                        ToolCall(
+                            name="inspect_project",
+                            arguments={"path": "."},
+                            id="call_1",
+                            metadata={
+                                "google": {
+                                    "thought_signature": "TEST_SIGNATURE",
+                                }
+                            },
+                        )
+                    ]
+                ),
+                ProviderResponse(content="done"),
+            ]
+        )
+        client = FakeMCPClient()
+
+        agent = Agent(client, provider)
+        agent.connect()
+
+        result = agent.run("Inspect this project.")
+
+        self.assertEqual(result, "done")
+        second_messages = provider.calls[1]["messages"]
+
+        self.assertEqual(
+            second_messages[1]["tool_calls"][0]["extra_content"],
+            {
+                "google": {
+                    "thought_signature": "TEST_SIGNATURE",
+                }
+            },
+        )
+
     def test_run_records_actual_tool_execution_trace(self):
         client = FakeMCPClient()
         provider = FakeProvider(
