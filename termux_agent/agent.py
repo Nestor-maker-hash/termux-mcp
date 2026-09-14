@@ -59,6 +59,7 @@ class Agent:
         self.max_iterations = max_iterations
 
         self._tools: Optional[List[Dict[str, Any]]] = None
+        self.last_run_trace: List[Dict[str, Any]] = []
 
     @property
     def tools(self) -> List[Dict[str, Any]]:
@@ -82,6 +83,8 @@ class Agent:
         """Run a task through the provider/tool execution loop."""
         if not isinstance(task, str) or not task.strip():
             raise ValueError("task must be a non-empty string.")
+
+        self.last_run_trace = []
 
         if not self.client.running:
             raise AgentError("Agent is not connected.")
@@ -128,17 +131,35 @@ class Agent:
                 for index, call in enumerate(response.tool_calls):
                     call_id = call.id or "call_{}".format(index + 1)
 
-                    result = self.client.call_tool(
-                        call.name,
-                        call.arguments,
-                    )
+                    trace_entry: Dict[str, Any] = {
+                        "type": "tool_call",
+                        "id": call_id,
+                        "name": call.name,
+                        "arguments": dict(call.arguments),
+                        "success": False,
+                    }
+
+                    try:
+                        result = self.client.call_tool(
+                            call.name,
+                            call.arguments,
+                        )
+                        result_text = self._tool_result_text(result)
+                    except Exception as exc:
+                        trace_entry["error"] = str(exc)
+                        self.last_run_trace.append(trace_entry)
+                        raise
+
+                    trace_entry["success"] = True
+                    trace_entry["result"] = result_text
+                    self.last_run_trace.append(trace_entry)
 
                     messages.append(
                         {
                             "role": "tool",
                             "tool_call_id": call_id,
                             "name": call.name,
-                            "content": self._tool_result_text(result),
+                            "content": result_text,
                         }
                     )
 

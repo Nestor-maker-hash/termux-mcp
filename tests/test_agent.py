@@ -162,6 +162,81 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(second_messages[2]["name"], "echo")
         self.assertEqual(second_messages[2]["content"], "hello")
 
+    def test_run_records_actual_tool_execution_trace(self):
+        client = FakeMCPClient()
+        provider = FakeProvider(
+            [
+                ProviderResponse(
+                    tool_calls=[
+                        ToolCall(
+                            name="echo",
+                            arguments={"text": "hello"},
+                        )
+                    ]
+                ),
+                ProviderResponse(content="Finished."),
+            ]
+        )
+
+        agent = Agent(client, provider)
+        agent.connect()
+
+        result = agent.run("Echo hello.")
+
+        self.assertEqual(result, "Finished.")
+        self.assertEqual(
+            agent.last_run_trace,
+            [
+                {
+                    "type": "tool_call",
+                    "id": "call_1",
+                    "name": "echo",
+                    "arguments": {"text": "hello"},
+                    "success": True,
+                    "result": "hello",
+                }
+            ],
+        )
+
+    def test_run_trace_records_tool_failure(self):
+        class FailingClient(FakeMCPClient):
+            def call_tool(self, name, arguments=None):
+                raise RuntimeError("tool failed")
+
+        client = FailingClient()
+        provider = FakeProvider(
+            [
+                ProviderResponse(
+                    tool_calls=[
+                        ToolCall(
+                            name="echo",
+                            arguments={"text": "hello"},
+                        )
+                    ]
+                )
+            ]
+        )
+
+        agent = Agent(client, provider)
+        agent.connect()
+
+        with self.assertRaises(RuntimeError):
+            agent.run("Echo hello.")
+
+        self.assertEqual(
+            agent.last_run_trace,
+            [
+                {
+                    "type": "tool_call",
+                    "id": "call_1",
+                    "name": "echo",
+                    "arguments": {"text": "hello"},
+                    "success": False,
+                    "error": "tool failed",
+                }
+            ],
+        )
+
     def test_run_can_execute_multiple_tools_in_one_response(self):
         client = FakeMCPClient()
         provider = FakeProvider(
